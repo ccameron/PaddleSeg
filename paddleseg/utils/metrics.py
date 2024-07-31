@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-import paddle
-import paddle.nn.functional as F
-import sklearn.metrics as skmetrics
+import numpy as np  # type: ignore
+import paddle  # type: ignore
+import paddle.nn.functional as F  # type: ignore
+import sklearn.metrics as skmetrics  # type: ignore
 
 
 def calculate_area(pred, label, num_classes, ignore_index=255, use_multilabel=False):
@@ -40,9 +40,10 @@ def calculate_area(pred, label, num_classes, ignore_index=255, use_multilabel=Fa
         if len(label.shape) == 4:
             label = paddle.squeeze(label, axis=1)
         if not pred.shape == label.shape:
-            raise ValueError('Shape of `pred` and `label should be equal, '
-                             'but there are {} and {}.'.format(pred.shape,
-                                                               label.shape))
+            raise ValueError(
+                "Shape of `pred` and `label should be equal, "
+                "but there are {} and {}.".format(pred.shape, label.shape)
+            )
         pred_area = []
         label_area = []
         intersect_area = []
@@ -60,9 +61,9 @@ def calculate_area(pred, label, num_classes, ignore_index=255, use_multilabel=Fa
         label_area = paddle.stack(label_area)
         intersect_area = paddle.stack(intersect_area)
     else:
-        pred_area = pred.sum([0, 2, 3]).astype('int64')
-        label_area = label.sum([0, 2, 3]).astype('int64')
-        intersect_area = (pred * label).sum([0, 2, 3]).astype('int64')
+        pred_area = pred.sum([0, 2, 3]).astype("int64")
+        label_area = label.sum([0, 2, 3]).astype("int64")
+        intersect_area = (pred * label).sum([0, 2, 3]).astype("int64")
 
     return intersect_area, pred_area, label_area
 
@@ -81,17 +82,21 @@ def auc_roc(logits, label, num_classes, ignore_index=None):
         auc_roc(float): The area under roc curve
     """
     if ignore_index or len(np.unique(label)) > num_classes:
-        raise RuntimeError('labels with ignore_index is not supported yet.')
+        raise RuntimeError("labels with ignore_index is not supported yet.")
 
     if len(label.shape) != 4:
         raise ValueError(
-            'The shape of label is not 4 dimension as (N, C, H, W), it is {}'.
-            format(label.shape))
+            "The shape of label is not 4 dimension as (N, C, H, W), it is {}".format(
+                label.shape
+            )
+        )
 
     if len(logits.shape) != 4:
         raise ValueError(
-            'The shape of logits is not 4 dimension as (N, C, H, W), it is {}'.
-            format(logits.shape))
+            "The shape of logits is not 4 dimension as (N, C, H, W), it is {}".format(
+                logits.shape
+            )
+        )
 
     N, C, H, W = logits.shape
     logits = np.transpose(logits, (1, 0, 2, 3))
@@ -101,14 +106,15 @@ def auc_roc(logits, label, num_classes, ignore_index=None):
     label = label.reshape([1, N * H * W]).squeeze()
 
     if not logits.shape[0] == label.shape[0]:
-        raise ValueError('length of `logit` and `label` should be equal, '
-                         'but they are {} and {}.'.format(logits.shape[0],
-                                                          label.shape[0]))
+        raise ValueError(
+            "length of `logit` and `label` should be equal, "
+            "but they are {} and {}.".format(logits.shape[0], label.shape[0])
+        )
 
     if num_classes == 2:
         auc = skmetrics.roc_auc_score(label, logits[:, 1])
     else:
-        auc = skmetrics.roc_auc_score(label, logits, multi_class='ovr')
+        auc = skmetrics.roc_auc_score(label, logits, multi_class="ovr")
 
     return auc
 
@@ -136,7 +142,7 @@ def mean_iou(intersect_area, pred_area, label_area):
             iou = 1
         else:
             iou = intersect_area[i] / union[i]
-        class_iou.append(float(iou))
+        class_iou.append(float(iou.item()))
     miou = np.mean(class_iou)
     return np.array(class_iou), miou
 
@@ -164,7 +170,7 @@ def dice(intersect_area, pred_area, label_area):
             dice = 0
         else:
             dice = (2 * intersect_area[i]) / union[i]
-        class_dice.append(float(dice))
+        class_dice.append(float(dice.item()))
     mdice = np.mean(class_dice)
     return np.array(class_dice), mdice
 
@@ -217,13 +223,10 @@ def class_measurement(intersect_area, pred_area, label_area):
     class_precision = []
     class_recall = []
     for i in range(len(intersect_area)):
-        precision = 0 if pred_area[i] == 0 \
-            else intersect_area[i] / pred_area[i]
-        recall = 0 if label_area[i] == 0 \
-            else intersect_area[i] / label_area[i]
-        class_precision.append(float(precision))
-        class_recall.append(float(recall))
-
+        precision = 0 if pred_area[i] == 0 else intersect_area[i] / pred_area[i]
+        recall = 0 if label_area[i] == 0 else intersect_area[i] / label_area[i]
+        class_precision.append(float(precision.item()))
+        class_recall.append(float(recall.item()))
     return mean_acc, np.array(class_precision), np.array(class_recall)
 
 
