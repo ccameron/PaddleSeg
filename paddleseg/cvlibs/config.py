@@ -18,15 +18,15 @@ import os
 from ast import literal_eval
 from typing import Any, Dict, Optional
 
-import yaml
-import paddle
+import yaml  # type: ignore
+import paddle  # type: ignore
 
 from paddleseg.cvlibs import config_checker as checker
 from paddleseg.cvlibs import manager
 from paddleseg.utils import logger, utils
 
-_INHERIT_KEY = '_inherited_'
-_BASE_KEY = '_base_'
+_INHERIT_KEY = "_inherited_"
+_BASE_KEY = "_base_"
 
 
 class Config(object):
@@ -41,10 +41,10 @@ class Config(object):
             For specific transforms, please refer to paddleseg.transforms.transforms.
         val_dataset: A validation data config including type/data_root/transforms/mode.
         optimizer: A optimizer config. Please refer to paddleseg.optimizers.
-        loss: A loss config. Multi-loss config is available. The loss type order is 
-            consistent with the seg model outputs, where the coef term indicates the 
-            weight of corresponding loss. Note that the number of coef must be the 
-            same as the number of model outputs, and there could be only one loss type 
+        loss: A loss config. Multi-loss config is available. The loss type order is
+            consistent with the seg model outputs, where the coef term indicates the
+            weight of corresponding loss. Note that the number of coef must be the
+            same as the number of model outputs, and there could be only one loss type
             if using the same loss type among the outputs, otherwise the number of
             loss type must be consistent with coef.
         model: A model config including type/backbone and model-dependent arguments.
@@ -57,18 +57,20 @@ class Config(object):
 
     """
 
-    def __init__(self,
-                 path: str,
-                 learning_rate: Optional[float]=None,
-                 batch_size: Optional[int]=None,
-                 iters: Optional[int]=None,
-                 to_static_training: Optional[bool]=None,
-                 opts: Optional[list]=None,
-                 checker: Optional[checker.ConfigChecker]=None):
-        assert os.path.exists(path), \
-            'Config path ({}) does not exist'.format(path)
-        assert path.endswith('yml') or path.endswith('yaml'), \
-            'Config file ({}) should be yaml format'.format(path)
+    def __init__(
+        self,
+        path: str,
+        learning_rate: Optional[float] = None,
+        batch_size: Optional[int] = None,
+        iters: Optional[int] = None,
+        to_static_training: Optional[bool] = None,
+        opts: Optional[list] = None,
+        checker: Optional[checker.ConfigChecker] = None,
+    ):
+        assert os.path.exists(path), "Config path ({}) does not exist".format(path)
+        assert path.endswith("yml") or path.endswith(
+            "yaml"
+        ), "Config file ({}) should be yaml format".format(path)
 
         self.dic = self._parse_from_yaml(path)
         self.dic = self.update_config_dict(
@@ -77,7 +79,8 @@ class Config(object):
             batch_size=batch_size,
             iters=iters,
             to_static_training=to_static_training,
-            opts=opts)
+            opts=opts,
+        )
 
         if checker is None:
             checker = self._build_default_checker()
@@ -85,48 +88,52 @@ class Config(object):
 
     @property
     def batch_size(self) -> int:
-        return self.dic.get('batch_size')
+        return self.dic.get("batch_size")
 
     @property
     def iters(self) -> int:
-        return self.dic.get('iters')
+        return self.dic.get("iters")
 
     @property
     def to_static_training(self) -> bool:
-        return self.dic.get('to_static_training', False)
+        return self.dic.get("to_static_training", False)
 
     @property
     def model_cfg(self) -> Dict:
-        return self.dic.get('model', {}).copy()
+        return self.dic.get("model", {}).copy()
 
     @property
     def loss_cfg(self) -> Dict:
-        return self.dic.get('loss', {}).copy()
+        return self.dic.get("loss", {}).copy()
 
     @property
     def distill_loss_cfg(self) -> Dict:
-        return self.dic.get('distill_loss', {}).copy()
+        return self.dic.get("distill_loss", {}).copy()
 
     @property
     def lr_scheduler_cfg(self) -> Dict:
-        return self.dic.get('lr_scheduler', {}).copy()
+        return self.dic.get("lr_scheduler", {}).copy()
 
     @property
     def optimizer_cfg(self) -> Dict:
-        return self.dic.get('optimizer', {}).copy()
+        return self.dic.get("optimizer", {}).copy()
 
     @property
     def train_dataset_cfg(self) -> Dict:
-        return self.dic.get('train_dataset', {}).copy()
+        return self.dic.get("train_dataset", {}).copy()
 
     @property
     def val_dataset_cfg(self) -> Dict:
-        return self.dic.get('val_dataset', {}).copy()
+        return self.dic.get("val_dataset", {}).copy()
+
+    @property
+    def test_dataset_cfg(self) -> Dict:
+        return self.dic.get("test_dataset", {}).copy()
 
     # TODO merge test_config into val_dataset
     @property
     def test_config(self) -> Dict:
-        return self.dic.get('test_config', {}).copy()
+        return self.dic.get("test_config", {}).copy()
 
     @classmethod
     def update_config_dict(cls, dic: dict, *args, **kwargs) -> dict:
@@ -143,22 +150,22 @@ class Config(object):
         rules.append(checker.DefaultSyncNumClassesRule())
         rules.append(checker.DefaultSyncImgChannelsRule())
         # Losses
-        rules.append(checker.DefaultLossRule('loss'))
-        rules.append(checker.DefaultSyncIgnoreIndexRule('loss'))
+        rules.append(checker.DefaultLossRule("loss"))
+        rules.append(checker.DefaultSyncIgnoreIndexRule("loss"))
         # Distillation losses
-        rules.append(checker.DefaultLossRule('distill_loss'))
-        rules.append(checker.DefaultSyncIgnoreIndexRule('distill_loss'))
+        rules.append(checker.DefaultLossRule("distill_loss"))
+        rules.append(checker.DefaultSyncIgnoreIndexRule("distill_loss"))
 
         return checker.ConfigChecker(rules, allow_update=True)
 
     def __str__(self) -> str:
-        # Use NoAliasDumper to avoid yml anchor 
+        # Use NoAliasDumper to avoid yml anchor
         return yaml.dump(self.dic, Dumper=utils.NoAliasDumper)
 
 
 def parse_from_yaml(path: str):
     """Parse a yaml file and build config"""
-    with codecs.open(path, 'r', 'utf-8') as file:
+    with codecs.open(path, "r", "utf-8") as file:
         dic = yaml.load(file, Loader=yaml.FullLoader)
 
     if _BASE_KEY in dic:
@@ -191,33 +198,37 @@ def merge_config_dicts(dic, base_dic):
     return base_dic
 
 
-def update_config_dict(dic: dict,
-                       learning_rate: Optional[float]=None,
-                       batch_size: Optional[int]=None,
-                       iters: Optional[int]=None,
-                       to_static_training: Optional[bool]=None,
-                       opts: Optional[list]=None):
+def update_config_dict(
+    dic: dict,
+    learning_rate: Optional[float] = None,
+    batch_size: Optional[int] = None,
+    iters: Optional[int] = None,
+    to_static_training: Optional[bool] = None,
+    opts: Optional[list] = None,
+):
     """Update config"""
     # TODO: If the items to update are marked as anchors in the yaml file,
     # we should synchronize the references.
     dic = dic.copy()
 
     if learning_rate:
-        dic['lr_scheduler']['learning_rate'] = learning_rate
+        dic["lr_scheduler"]["learning_rate"] = learning_rate
     if batch_size:
-        dic['batch_size'] = batch_size
+        dic["batch_size"] = batch_size
     if iters:
-        dic['iters'] = iters
+        dic["iters"] = iters
     if to_static_training:
-        dic['to_static_training'] = to_static_training
+        dic["to_static_training"] = to_static_training
 
     if opts is not None:
         for item in opts:
-            assert ('=' in item) and (len(item.split('=')) == 2), "--opts params should be key=value," \
-                " such as `--opts batch_size=1 test_config.scales=0.75,1.0,1.25`, " \
+            assert ("=" in item) and (len(item.split("=")) == 2), (
+                "--opts params should be key=value,"
+                " such as `--opts batch_size=1 test_config.scales=0.75,1.0,1.25`, "
                 "but got ({})".format(opts)
+            )
 
-            key, value = item.split('=')
+            key, value = item.split("=")
             if isinstance(value, six.string_types):
                 try:
                     value = literal_eval(value)
@@ -225,12 +236,13 @@ def update_config_dict(dic: dict,
                     pass
                 except SyntaxError:
                     pass
-            key_list = key.split('.')
+            key_list = key.split(".")
 
             tmp_dic = dic
             for subkey in key_list[:-1]:
-                assert subkey in tmp_dic, "Can not update {}, because it is not in config.".format(
-                    key)
+                assert (
+                    subkey in tmp_dic
+                ), "Can not update {}, because it is not in config.".format(key)
                 tmp_dic = tmp_dic[subkey]
             tmp_dic[key_list[-1]] = value
 
