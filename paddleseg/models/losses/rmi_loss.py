@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """rmi loss in PaddlePaddle"""
-import numpy
-import paddle
-import paddle.nn as nn
-import paddle.nn.functional as F
+import numpy  # type: ignore
+import paddle  # type: ignore
+import paddle.nn as nn  # type: ignore
+import paddle.nn.functional as F  # type: ignore
 
 from paddleseg.cvlibs import manager
 
@@ -45,14 +45,16 @@ class RMILoss(nn.Layer):
             and does not contribute to the input gradient. Default ``255``.
     """
 
-    def __init__(self,
-                 num_classes=19,
-                 rmi_radius=3,
-                 rmi_pool_way=0,
-                 rmi_pool_size=3,
-                 rmi_pool_stride=3,
-                 loss_weight_lambda=0.5,
-                 ignore_index=255):
+    def __init__(
+        self,
+        num_classes=19,
+        rmi_radius=3,
+        rmi_pool_way=0,
+        rmi_pool_size=3,
+        rmi_pool_stride=3,
+        loss_weight_lambda=0.5,
+        ignore_index=255,
+    ):
         super(RMILoss, self).__init__()
 
         self.num_classes = num_classes
@@ -76,8 +78,8 @@ class RMILoss(nn.Layer):
             logits (Tensor): Shape is [N, C, H, W], logits at each prediction (between -\infty and +\infty).
             labels (Tensor): Shape is [N, H, W], ground truth labels (between 0 and C - 1).
         """
-        logits_4D = paddle.cast(logits_4D, dtype='float32')
-        labels_4D = paddle.cast(labels_4D, dtype='float32')
+        logits_4D = paddle.cast(logits_4D, dtype="float32")
+        labels_4D = paddle.cast(labels_4D, dtype="float32")
 
         loss = self.forward_sigmoid(logits_4D, labels_4D, do_rmi=do_rmi)
         return loss
@@ -92,21 +94,27 @@ class RMILoss(nn.Layer):
         """
         label_mask_3D = labels_4D != self.ignore_index
         valid_onehot_labels_4D = paddle.cast(
-            F.one_hot(paddle.cast(labels_4D, dtype='int64') *
-                      paddle.cast(label_mask_3D, dtype='int64'),
-                      num_classes=self.num_classes),
-            dtype='float32')
+            F.one_hot(
+                paddle.cast(labels_4D, dtype="int64")
+                * paddle.cast(label_mask_3D, dtype="int64"),
+                num_classes=self.num_classes,
+            ),
+            dtype="float32",
+        )
         # label_mask_flat = paddle.cast(
         #     paddle.reshape(label_mask_3D, [-1]), dtype='float32')
 
         valid_onehot_labels_4D = valid_onehot_labels_4D * paddle.unsqueeze(
-            label_mask_3D, axis=3).astype(valid_onehot_labels_4D.dtype)
+            label_mask_3D, axis=3
+        ).astype(valid_onehot_labels_4D.dtype)
         valid_onehot_labels_4D.stop_gradient = True
-        probs_4D = F.sigmoid(logits_4D) * paddle.unsqueeze(
-            label_mask_3D, axis=1).astype(logits_4D.dtype) + _CLIP_MIN
+        probs_4D = (
+            F.sigmoid(logits_4D)
+            * paddle.unsqueeze(label_mask_3D, axis=1).astype(logits_4D.dtype)
+            + _CLIP_MIN
+        )
 
-        valid_onehot_labels_4D = paddle.transpose(valid_onehot_labels_4D,
-                                                  [0, 3, 1, 2])
+        valid_onehot_labels_4D = paddle.transpose(valid_onehot_labels_4D, [0, 3, 1, 2])
         valid_onehot_labels_4D.stop_gradient = True
         rmi_loss = self.rmi_lower_bound(valid_onehot_labels_4D, probs_4D)
 
@@ -122,92 +130,87 @@ class RMILoss(nn.Layer):
                 labels_4D   :   [N, C, H, W], dtype=float32
                 probs_4D    :   [N, C, H, W], dtype=float32
         """
-        assert labels_4D.shape == probs_4D.shape, print('shapes',
-                                                        labels_4D.shape,
-                                                        probs_4D.shape)
+        assert labels_4D.shape == probs_4D.shape, print(
+            "shapes", labels_4D.shape, probs_4D.shape
+        )
 
         p, s = self.rmi_pool_size, self.rmi_pool_stride
         if self.rmi_pool_stride > 1:
             if self.rmi_pool_way == 0:
-                labels_4D = F.max_pool2d(labels_4D,
-                                         kernel_size=p,
-                                         stride=s,
-                                         padding=self.kernel_padding)
-                probs_4D = F.max_pool2d(probs_4D,
-                                        kernel_size=p,
-                                        stride=s,
-                                        padding=self.kernel_padding)
+                labels_4D = F.max_pool2d(
+                    labels_4D, kernel_size=p, stride=s, padding=self.kernel_padding
+                )
+                probs_4D = F.max_pool2d(
+                    probs_4D, kernel_size=p, stride=s, padding=self.kernel_padding
+                )
             elif self.rmi_pool_way == 1:
-                labels_4D = F.avg_pool2d(labels_4D,
-                                         kernel_size=p,
-                                         stride=s,
-                                         padding=self.kernel_padding)
-                probs_4D = F.avg_pool2d(probs_4D,
-                                        kernel_size=p,
-                                        stride=s,
-                                        padding=self.kernel_padding)
+                labels_4D = F.avg_pool2d(
+                    labels_4D, kernel_size=p, stride=s, padding=self.kernel_padding
+                )
+                probs_4D = F.avg_pool2d(
+                    probs_4D, kernel_size=p, stride=s, padding=self.kernel_padding
+                )
             elif self.rmi_pool_way == 2:
                 shape = labels_4D.shape
                 new_h, new_w = shape[2] // s, shape[3] // s
-                labels_4D = F.interpolate(labels_4D,
-                                          size=[new_h, new_w],
-                                          mode='nearest')
-                probs_4D = F.interpolate(probs_4D,
-                                         size=[new_h, new_w],
-                                         mode='bilinear',
-                                         align_corners=True)
+                labels_4D = F.interpolate(
+                    labels_4D, size=[new_h, new_w], mode="nearest"
+                )
+                probs_4D = F.interpolate(
+                    probs_4D, size=[new_h, new_w], mode="bilinear", align_corners=True
+                )
             else:
                 raise NotImplementedError("Pool way of RMI is not defined!")
 
         label_shape = labels_4D.shape
         n, c = label_shape[0], label_shape[1]
 
-        la_vectors, pr_vectors = self.map_get_pairs(labels_4D,
-                                                    probs_4D,
-                                                    radius=self.rmi_radius,
-                                                    is_combine=0)
+        la_vectors, pr_vectors = self.map_get_pairs(
+            labels_4D, probs_4D, radius=self.rmi_radius, is_combine=0
+        )
 
         la_vectors = paddle.reshape(la_vectors, [n, c, self.half_d, -1])
-        la_vectors = paddle.cast(la_vectors, dtype='float64')
+        la_vectors = paddle.cast(la_vectors, dtype="float64")
         la_vectors.stop_gradient = True
 
         pr_vectors = paddle.reshape(pr_vectors, [n, c, self.half_d, -1])
-        pr_vectors = paddle.cast(pr_vectors, dtype='float64')
+        pr_vectors = paddle.cast(pr_vectors, dtype="float64")
 
-        diag_matrix = paddle.unsqueeze(paddle.unsqueeze(paddle.eye(self.half_d),
-                                                        axis=0),
-                                       axis=0)
+        diag_matrix = paddle.unsqueeze(
+            paddle.unsqueeze(paddle.eye(self.half_d), axis=0), axis=0
+        )
         la_vectors = la_vectors - paddle.mean(la_vectors, axis=3, keepdim=True)
 
-        la_cov = paddle.matmul(la_vectors,
-                               paddle.transpose(la_vectors, [0, 1, 3, 2]))
+        la_cov = paddle.matmul(la_vectors, paddle.transpose(la_vectors, [0, 1, 3, 2]))
         pr_vectors = pr_vectors - paddle.mean(pr_vectors, axis=3, keepdim=True)
-        pr_cov = paddle.matmul(pr_vectors,
-                               paddle.transpose(pr_vectors, [0, 1, 3, 2]))
+        pr_cov = paddle.matmul(pr_vectors, paddle.transpose(pr_vectors, [0, 1, 3, 2]))
 
-        pr_cov_inv = self.inverse(pr_cov +
-                                  paddle.cast(diag_matrix, dtype='float64') *
-                                  _POS_ALPHA)
+        pr_cov_inv = self.inverse(
+            pr_cov + paddle.cast(diag_matrix, dtype="float64") * _POS_ALPHA
+        )
 
-        la_pr_cov = paddle.matmul(la_vectors,
-                                  paddle.transpose(pr_vectors, [0, 1, 3, 2]))
+        la_pr_cov = paddle.matmul(
+            la_vectors, paddle.transpose(pr_vectors, [0, 1, 3, 2])
+        )
 
         appro_var = la_cov - paddle.matmul(
             paddle.matmul(la_pr_cov, pr_cov_inv),
-            paddle.transpose(la_pr_cov, [0, 1, 3, 2]))
+            paddle.transpose(la_pr_cov, [0, 1, 3, 2]),
+        )
 
         rmi_now = 0.5 * self.log_det_by_cholesky(
-            appro_var + paddle.cast(diag_matrix, dtype='float64') * _POS_ALPHA)
+            appro_var + paddle.cast(diag_matrix, dtype="float64") * _POS_ALPHA
+        )
 
-        rmi_per_class = paddle.cast(paddle.mean(paddle.reshape(
-            rmi_now, [-1, self.num_classes]),
-                                                axis=0),
-                                    dtype='float32')
-        rmi_per_class = paddle.divide(rmi_per_class,
-                                      paddle.to_tensor(float(self.half_d)))
+        rmi_per_class = paddle.cast(
+            paddle.mean(paddle.reshape(rmi_now, [-1, self.num_classes]), axis=0),
+            dtype="float32",
+        )
+        rmi_per_class = paddle.divide(
+            rmi_per_class, paddle.to_tensor(float(self.half_d))
+        )
 
-        rmi_loss = paddle.sum(rmi_per_class) if _IS_SUM else paddle.mean(
-            rmi_per_class)
+        rmi_loss = paddle.sum(rmi_per_class) if _IS_SUM else paddle.mean(rmi_per_class)
 
         return rmi_loss
 
@@ -241,8 +244,8 @@ class RMILoss(nn.Layer):
         pr_ns = []
         for y in range(0, radius, 1):
             for x in range(0, radius, 1):
-                la_now = labels_4D[:, :, y:y + new_h, x:x + new_w]
-                pr_now = probs_4D[:, :, y:y + new_h, x:x + new_w]
+                la_now = labels_4D[:, :, y : y + new_h, x : x + new_w]
+                pr_now = probs_4D[:, :, y : y + new_h, x : x + new_w]
                 la_ns.append(la_now)
                 pr_ns.append(pr_now)
 
