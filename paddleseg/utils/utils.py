@@ -18,10 +18,10 @@ import tempfile
 import random
 from urllib.parse import urlparse, unquote
 
-import yaml
-import numpy as np
-import paddle
-import cv2
+import yaml  # type: ignore
+import numpy as np  # type: ignore
+import paddle  # type: ignore
+import cv2  # type: ignore
 
 from paddleseg.utils import logger, seg_env, get_sys_env
 from paddleseg.utils.download import download_file_and_uncompress
@@ -37,16 +37,25 @@ def set_seed(seed=None):
 
 def show_env_info():
     env_info = get_sys_env()
-    info = ['{}: {}'.format(k, v) for k, v in env_info.items()]
-    info = '\n'.join(['', format('Environment Information', '-^48s')] + info +
-                     ['-' * 48])
+    info = ["{}: {}".format(k, v) for k, v in env_info.items()]
+    info = "\n".join(
+        ["", format("Environment Information", "-^48s")] + info + ["-" * 48]
+    )
     logger.info(info)
 
 
 def show_cfg_info(config):
-    msg = '\n---------------Config Information---------------\n'
-    ordered_module = ('batch_size', 'iters', 'train_dataset', 'val_dataset',
-                      'optimizer', 'lr_scheduler', 'loss', 'model')
+    msg = "\n---------------Config Information---------------\n"
+    ordered_module = (
+        "batch_size",
+        "iters",
+        "train_dataset",
+        "val_dataset",
+        "optimizer",
+        "lr_scheduler",
+        "loss",
+        "model",
+    )
     all_module = set(config.dic.keys())
     for module in ordered_module:
         if module in config.dic:
@@ -56,23 +65,26 @@ def show_cfg_info(config):
     for module in all_module:
         module_dic = {module: config.dic[module]}
         msg += str(yaml.dump(module_dic, Dumper=NoAliasDumper))
-    msg += '------------------------------------------------\n'
+    msg += "------------------------------------------------\n"
     logger.info(msg)
 
 
 def set_device(device):
     env_info = get_sys_env()
-    if 'gpu' in device and env_info['Paddle compiled with cuda'] \
-        and env_info['GPUs used']:
+    if (
+        "gpu" in device
+        and env_info["Paddle compiled with cuda"]
+        and env_info["GPUs used"]
+    ):
         place = device
-    elif 'xpu' in device and paddle.is_compiled_with_xpu():
+    elif "xpu" in device and paddle.is_compiled_with_xpu():
         place = device
-    elif 'npu' in device and paddle.is_compiled_with_custom_device('npu'):
+    elif "npu" in device and paddle.is_compiled_with_custom_device("npu"):
         place = device
     elif device in paddle.device.get_all_custom_device_type():
         place = device
     else:
-        place = 'cpu'
+        place = "cpu"
     paddle.set_device(place)
     logger.info("Set device: {}".format(place))
 
@@ -80,8 +92,12 @@ def set_device(device):
 def convert_sync_batchnorm(model, device):
     # Convert bn to sync_bn when use multi GPUs
     env_info = get_sys_env()
-    if device == 'gpu' and env_info['Paddle compiled with cuda'] \
-        and env_info['GPUs used'] and paddle.distributed.ParallelEnv().nranks > 1:
+    if (
+        device == "gpu"
+        and env_info["Paddle compiled with cuda"]
+        and env_info["GPUs used"]
+        and paddle.distributed.ParallelEnv().nranks > 1
+    ):
         model = paddle.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         logger.info("Convert bn to sync_bn")
     elif device == "npu" and paddle.distributed.ParallelEnv().nranks > 1:
@@ -95,14 +111,16 @@ def set_cv2_num_threads(num_workers):
     # This should reduce resource allocation and thus boost performance.
     nranks = paddle.distributed.ParallelEnv().nranks
     if nranks >= 8 and num_workers >= 8:
-        logger.warning("The number of threads used by OpenCV is " \
-            "set to 1 to improve performance.")
+        logger.warning(
+            "The number of threads used by OpenCV is "
+            "set to 1 to improve performance."
+        )
         cv2.setNumThreads(1)
 
 
 @contextlib.contextmanager
 def generate_tempdir(directory: str = None, **kwargs):
-    '''Generate a temporary directory'''
+    """Generate a temporary directory"""
     directory = seg_env.TMP_HOME if not directory else directory
     with tempfile.TemporaryDirectory(dir=directory, **kwargs) as _dir:
         yield _dir
@@ -112,9 +130,10 @@ def load_entire_model(model, pretrained):
     if pretrained is not None:
         load_pretrained_model(model, pretrained)
     else:
-        logger.warning('Weights are not loaded for {} model since the '
-                       'path of weights is None'.format(
-                           model.__class__.__name__))
+        logger.warning(
+            "Weights are not loaded for {} model since the "
+            "path of weights is None".format(model.__class__.__name__)
+        )
 
 
 def download_pretrained_model(pretrained_model):
@@ -128,13 +147,13 @@ def download_pretrained_model(pretrained_model):
     assert urlparse(pretrained_model).netloc, "The url is not valid."
 
     pretrained_model = unquote(pretrained_model)
-    savename = pretrained_model.split('/')[-1]
-    if not savename.endswith(('tgz', 'tar.gz', 'tar', 'zip')):
-        savename = pretrained_model.split('/')[-2]
-        filename = pretrained_model.split('/')[-1]
+    savename = pretrained_model.split("/")[-1]
+    if not savename.endswith(("tgz", "tar.gz", "tar", "zip")):
+        savename = pretrained_model.split("/")[-2]
+        filename = pretrained_model.split("/")[-1]
     else:
-        savename = savename.split('.')[0]
-        filename = 'model.pdparams'
+        savename = savename.split(".")[0]
+        filename = "model.pdparams"
 
     with generate_tempdir() as _dir:
         pretrained_model = download_file_and_uncompress(
@@ -143,14 +162,15 @@ def download_pretrained_model(pretrained_model):
             cover=False,
             extrapath=seg_env.PRETRAINED_MODEL_HOME,
             extraname=savename,
-            filename=filename)
+            filename=filename,
+        )
         pretrained_model = os.path.join(pretrained_model, filename)
     return pretrained_model
 
 
 def load_pretrained_model(model, pretrained_model):
     if pretrained_model is not None:
-        logger.info('Loading pretrained model from {}'.format(pretrained_model))
+        logger.info("Loading pretrained model from {}".format(pretrained_model))
 
         if urlparse(pretrained_model).netloc:
             pretrained_model = download_pretrained_model(pretrained_model)
@@ -164,51 +184,59 @@ def load_pretrained_model(model, pretrained_model):
             for k in keys:
                 if k not in para_state_dict:
                     logger.warning("{} is not in pretrained model".format(k))
-                elif list(para_state_dict[k].shape) != list(
-                        model_state_dict[k].shape):
+                elif list(para_state_dict[k].shape) != list(model_state_dict[k].shape):
                     logger.warning(
-                        "[SKIP] Shape of pretrained params {} doesn't match.(Pretrained: {}, Actual: {})"
-                        .format(k, para_state_dict[k].shape,
-                                model_state_dict[k].shape))
+                        "[SKIP] Shape of pretrained params {} doesn't match.(Pretrained: {}, Actual: {})".format(
+                            k, para_state_dict[k].shape, model_state_dict[k].shape
+                        )
+                    )
                 else:
                     model_state_dict[k] = para_state_dict[k]
                     num_params_loaded += 1
             model.set_dict(model_state_dict)
-            logger.info("There are {}/{} variables loaded into {}.".format(
-                num_params_loaded, len(model_state_dict),
-                model.__class__.__name__))
+            logger.info(
+                "There are {}/{} variables loaded into {}.".format(
+                    num_params_loaded, len(model_state_dict), model.__class__.__name__
+                )
+            )
 
         else:
             raise ValueError(
-                'The pretrained model directory is not Found: {}'.format(
-                    pretrained_model))
+                "The pretrained model directory is not Found: {}".format(
+                    pretrained_model
+                )
+            )
     else:
         logger.info(
-            'No pretrained model to load, {} will be trained from scratch.'.
-            format(model.__class__.__name__))
+            "No pretrained model to load, {} will be trained from scratch.".format(
+                model.__class__.__name__
+            )
+        )
 
 
 def resume(model, optimizer, resume_model):
     if resume_model is not None:
-        logger.info('Resume model from {}'.format(resume_model))
+        logger.info("Resume model from {}".format(resume_model))
         if os.path.exists(resume_model):
             resume_model = os.path.normpath(resume_model)
-            ckpt_path = os.path.join(resume_model, 'model.pdparams')
+            ckpt_path = os.path.join(resume_model, "model.pdparams")
             para_state_dict = paddle.load(ckpt_path)
-            ckpt_path = os.path.join(resume_model, 'model.pdopt')
+            ckpt_path = os.path.join(resume_model, "model.pdopt")
             opti_state_dict = paddle.load(ckpt_path)
             model.set_state_dict(para_state_dict)
             optimizer.set_state_dict(opti_state_dict)
 
-            iter = resume_model.split('_')[-1]
+            iter = resume_model.split("_")[-1]
             iter = int(iter)
             return iter
         else:
             raise ValueError(
-                'Directory of the model needed to resume is not Found: {}'.
-                format(resume_model))
+                "Directory of the model needed to resume is not Found: {}".format(
+                    resume_model
+                )
+            )
     else:
-        logger.info('No model needed to resume.')
+        logger.info("No model needed to resume.")
 
 
 def worker_init_fn(worker_id):
@@ -218,7 +246,18 @@ def worker_init_fn(worker_id):
 def get_image_list(image_path):
     """Get image list"""
     valid_suffix = [
-        '.JPEG', '.jpeg', '.JPG', '.jpg', '.BMP', '.bmp', '.PNG', '.png'
+        ".JPEG",
+        ".jpeg",
+        ".JPG",
+        ".jpg",
+        ".BMP",
+        ".bmp",
+        ".PNG",
+        ".png",
+        ".TIFF",
+        ".tiff",
+        ".TIF",
+        ".tif",
     ]
     image_list = []
     image_dir = None
@@ -227,7 +266,7 @@ def get_image_list(image_path):
             image_list.append(image_path)
         else:
             image_dir = os.path.dirname(image_path)
-            with open(image_path, 'r') as f:
+            with open(image_path, "r") as f:
                 for line in f:
                     line = line.strip()
                     if len(line.split()) > 1:
@@ -237,20 +276,21 @@ def get_image_list(image_path):
         image_dir = image_path
         for root, dirs, files in os.walk(image_path):
             for f in files:
-                if '.ipynb_checkpoints' in root:
+                if ".ipynb_checkpoints" in root:
                     continue
-                if f.startswith('.'):
+                if f.startswith("."):
                     continue
                 if os.path.splitext(f)[-1] in valid_suffix:
                     image_list.append(os.path.join(root, f))
     else:
         raise FileNotFoundError(
-            '`--image_path` is not found. it should be a path of image, or a file list containing image paths, or a directory including images.'
+            "`--image_path` is not found. it should be a path of image, or a file list containing image paths, or a directory including images."
         )
 
     if len(image_list) == 0:
         raise RuntimeError(
-            'There are not image file in `--image_path`={}'.format(image_path))
+            "There are not image file in `--image_path`={}".format(image_path)
+        )
 
     return image_list, image_dir
 
@@ -272,7 +312,7 @@ class CachedProperty(object):
     def __init__(self, func):
         super().__init__()
         self.func = func
-        self.__doc__ = getattr(func, '__doc__', '')
+        self.__doc__ = getattr(func, "__doc__", "")
 
     def __get__(self, obj, cls):
         if obj is None:
@@ -285,16 +325,16 @@ class CachedProperty(object):
 
 
 def get_in_channels(model_cfg):
-    if 'backbone' in model_cfg:
-        return model_cfg['backbone'].get('in_channels', None)
+    if "backbone" in model_cfg:
+        return model_cfg["backbone"].get("in_channels", None)
     else:
-        return model_cfg.get('in_channels', None)
+        return model_cfg.get("in_channels", None)
 
 
 def set_in_channels(model_cfg, in_channels):
     model_cfg = model_cfg.copy()
-    if 'backbone' in model_cfg:
-        model_cfg['backbone']['in_channels'] = in_channels
+    if "backbone" in model_cfg:
+        model_cfg["backbone"]["in_channels"] = in_channels
     else:
-        model_cfg['in_channels'] = in_channels
+        model_cfg["in_channels"] = in_channels
     return model_cfg
