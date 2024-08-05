@@ -158,7 +158,7 @@ class MSDeformAttn(nn.Layer):
                 )
             )
         try:
-            import ms_deform_attn
+            import ms_deform_attn  # type: ignore
         except:
             print(
                 "Import ms_deform_attn failed. Please download the following file and refer to "
