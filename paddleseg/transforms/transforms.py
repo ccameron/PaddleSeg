@@ -81,7 +81,7 @@ class Compose:
                     raise ValueError(
                         f"Invalid number of channels for non-TIFF file: {img_channels}. Expected 1 or 3."
                     )
-            img = cv2.imread(data["img"], self.read_flag)
+                img = cv2.imread(data["img"], self.read_flag)
             if img is None:
                 raise ValueError("Can't read The image file {}!".format(data["img"]))
             data["img"] = img.astype("float32")
