@@ -21,7 +21,6 @@ with warnings.catch_warnings():
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     import pkg_resources
     import paddle  # type: ignore
-import paddle
 
 from paddleseg.core import predict
 from paddleseg.cvlibs import Config, SegBuilder, manager
