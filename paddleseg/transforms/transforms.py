@@ -18,10 +18,13 @@ import math
 import cv2  # type: ignore
 import numpy as np  # type: ignore
 from PIL import Image  # type: ignore
+import tifffile as tiff  # type: ignore
 
 from paddleseg.cvlibs import manager
 from paddleseg.transforms import functional
 from paddleseg.utils import logger
+
+is_tiff_file = False
 
 
 @manager.TRANSFORMS.add_component
@@ -57,6 +60,8 @@ class Compose:
 
         Returns: A dict after process。
         """
+        global is_tiff_file
+
         if "img" not in data.keys():
             raise ValueError("`data` must include `img` key.")
         # data['img'] is numpy array in eg1800 and supervisely
@@ -65,6 +70,17 @@ class Compose:
                 "Expect `data[img]` to be str or np.ndarray, but got NoneType."
             )
         elif isinstance(data["img"], str):
+            try:
+                # read in TIFF images using tifffile
+                with tiff.TiffFile(data["img"]) as tif:
+                    img = tif.asarray().transpose([1, 2, 0])
+                is_tiff_file = True
+            except tiff.tifffile.TiffFileError:
+                # read other file formats using OpenCV - 1 or 3 channel only
+                if self.img_channels not in [1, 3]:
+                    raise ValueError(
+                        f"Invalid number of channels for non-TIFF file: {img_channels}. Expected 1 or 3."
+                    )
             img = cv2.imread(data["img"], self.read_flag)
             if img is None:
                 raise ValueError("Can't read The image file {}!".format(data["img"]))
@@ -483,23 +499,40 @@ class Normalize:
 
 
 @manager.TRANSFORMS.add_component
+class MinMaxScale:
+    """
+    Min-max scale an image.
+
+    Args:
+        min_val (float, optional): The minimum value of the output image. Default: 0.
+        max_val (float, optional): The maximum value of the output image. Default: 1.
+    """
+
+    def __init__(self, min_val: float = 0, max_val: float = 1) -> None:
+        self.min_val = min_val
+        self.max_val = max_val
+
+    def __call__(self, data: dict) -> dict:
+        data["img"] = cv2.normalize(
+            data["img"], None, self.min_val, self.max_val, cv2.NORM_MINMAX
+        )
+        return data
+
+
+@manager.TRANSFORMS.add_component
 class Standardize:
     """
     Standardizes an image by zero centering and scales pixel intensities
 
     Args:
-        sigma(float, optional): The Gaussian sigma value to be used. Default: 24.
-
-    Raises:
-        ValueError: When sigma is not a float.
+        sigma(float, optional): The Gaussian sigma value to be used. Default: 24.0
     """
 
-    def __init__(self, sigma=24.0):
-        if not isinstance(sigma, float):
-            raise ValueError("sigma is invalid. It should be a float")
+    def __init__(self, sigma: float = 24.0) -> None:
+        assert isinstance(sigma, float), "sigma should be a float"
         self.sigma = sigma
 
-    def __call__(self, data):
+    def __call__(self, data: dict) -> dict:
 
         # zero center pixels
         smooth = cv2.GaussianBlur(data["img"], (0, 0), sigmaX=self.sigma)
@@ -509,9 +542,8 @@ class Standardize:
         # src - https://docs.opencv.org/4.x/d4/d86/group__imgproc__filter.html#gaabe8c836e97159a9193fb0b11ac52cf1
         data["img"] = np.subtract(data["img"], smooth)
         del smooth
-        # scale pixel intensities
+        # scale pixel intensities by standard deviation
         data["img"] /= np.std(data["img"])
-
         return data
 
 

@@ -14,9 +14,9 @@
 
 import os
 
-import paddle
-import numpy as np
-from PIL import Image
+import paddle  # type: ignore
+import numpy as np  # type: ignore
+from PIL import Image  # type: ignore
 
 from paddleseg.cvlibs import manager
 from paddleseg.transforms import Compose
@@ -61,18 +61,20 @@ class Dataset(paddle.io.Dataset):
 
     """
 
-    def __init__(self,
-                 mode,
-                 dataset_root,
-                 transforms,
-                 num_classes,
-                 img_channels=3,
-                 train_path=None,
-                 val_path=None,
-                 test_path=None,
-                 separator=' ',
-                 ignore_index=255,
-                 edge=False):
+    def __init__(
+        self,
+        mode,
+        dataset_root,
+        transforms,
+        num_classes,
+        img_channels=3,
+        train_path=None,
+        val_path=None,
+        test_path=None,
+        separator=" ",
+        ignore_index=255,
+        edge=False,
+    ):
         self.dataset_root = dataset_root
         self.transforms = Compose(transforms, img_channels=img_channels)
         self.file_list = list()
@@ -82,41 +84,42 @@ class Dataset(paddle.io.Dataset):
         self.ignore_index = ignore_index
         self.edge = edge
 
-        if self.mode not in ['train', 'val', 'test']:
+        if self.mode not in ["train", "val", "test"]:
             raise ValueError(
-                "mode should be 'train', 'val' or 'test', but got {}.".format(
-                    self.mode))
+                "mode should be 'train', 'val' or 'test', but got {}.".format(self.mode)
+            )
         if not os.path.exists(self.dataset_root):
-            raise FileNotFoundError('there is not `dataset_root`: {}.'.format(
-                self.dataset_root))
+            raise FileNotFoundError(
+                "there is not `dataset_root`: {}.".format(self.dataset_root)
+            )
         if self.transforms is None:
             raise ValueError("`transforms` is necessary, but it is None.")
         if num_classes < 1:
             raise ValueError(
-                "`num_classes` should be greater than 1, but got {}".format(
-                    num_classes))
-        if img_channels not in [1, 3]:
-            raise ValueError("`img_channels` should in [1, 3], but got {}".
-                             format(img_channels))
+                "`num_classes` should be greater than 1, but got {}".format(num_classes)
+            )
+        # if img_channels not in [1, 3]:
+        #     raise ValueError("`img_channels` should in [1, 3], but got {}".
+        #                      format(img_channels))
 
-        if self.mode == 'train':
+        if self.mode == "train":
             if train_path is None:
                 raise ValueError(
                     'When `mode` is "train", `train_path` is necessary, but it is None.'
                 )
             elif not os.path.exists(train_path):
-                raise FileNotFoundError('`train_path` is not found: {}'.format(
-                    train_path))
+                raise FileNotFoundError(
+                    "`train_path` is not found: {}".format(train_path)
+                )
             else:
                 file_path = train_path
-        elif self.mode == 'val':
+        elif self.mode == "val":
             if val_path is None:
                 raise ValueError(
                     'When `mode` is "val", `val_path` is necessary, but it is None.'
                 )
             elif not os.path.exists(val_path):
-                raise FileNotFoundError('`val_path` is not found: {}'.format(
-                    val_path))
+                raise FileNotFoundError("`val_path` is not found: {}".format(val_path))
             else:
                 file_path = val_path
         else:
@@ -125,19 +128,21 @@ class Dataset(paddle.io.Dataset):
                     'When `mode` is "test", `test_path` is necessary, but it is None.'
                 )
             elif not os.path.exists(test_path):
-                raise FileNotFoundError('`test_path` is not found: {}'.format(
-                    test_path))
+                raise FileNotFoundError(
+                    "`test_path` is not found: {}".format(test_path)
+                )
             else:
                 file_path = test_path
 
-        with open(file_path, 'r') as f:
+        with open(file_path, "r") as f:
             for line in f:
                 items = line.strip().split(separator)
                 if len(items) != 2:
-                    if self.mode == 'train' or self.mode == 'val':
+                    if self.mode == "train" or self.mode == "val":
                         raise ValueError(
                             "File list format incorrect! In training or evaluation task it should be"
-                            " image_name{}label_name\\n".format(separator))
+                            " image_name{}label_name\\n".format(separator)
+                        )
                     image_path = os.path.join(self.dataset_root, items[0])
                     label_path = None
                 else:
@@ -147,29 +152,30 @@ class Dataset(paddle.io.Dataset):
 
     def __getitem__(self, idx):
         data = {}
-        data['trans_info'] = []
+        data["trans_info"] = []
         image_path, label_path = self.file_list[idx]
-        data['img'] = image_path
-        data['label'] = label_path
+        data["img"] = image_path
+        data["label"] = label_path
         # If key in gt_fields, the data[key] have transforms synchronous.
-        data['gt_fields'] = []
-        if self.mode == 'val':
+        data["gt_fields"] = []
+        if self.mode == "val":
             data = self.transforms(data)
-            if data['label'].ndim == 2:
-                data['label'] = data['label'][np.newaxis, :, :]
+            if data["label"].ndim == 2:
+                data["label"] = data["label"][np.newaxis, :, :]
 
         else:
-            data['gt_fields'].append('label')
+            data["gt_fields"].append("label")
             data = self.transforms(data)
             if self.edge:
                 edge_mask = F.mask_to_binary_edge(
-                    data['label'], radius=2, num_classes=self.num_classes)
-                data['edge'] = edge_mask
-            elif 'edge' in data:  # for AddEdgeLabel
+                    data["label"], radius=2, num_classes=self.num_classes
+                )
+                data["edge"] = edge_mask
+            elif "edge" in data:  # for AddEdgeLabel
                 # F.mask_to_binary_edge is so slow
                 # AddEdgeLabel will faster
                 # But offline generation of edges might be better
-                data['edge'][data['edge'] == self.ignore_index] = 0
+                data["edge"][data["edge"] == self.ignore_index] = 0
         return data
 
     def __len__(self):
