@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import random
 import math
+import os
+import random
 
 import cv2  # type: ignore
 import numpy as np  # type: ignore
@@ -25,6 +26,7 @@ from paddleseg.transforms import functional
 from paddleseg.utils import logger
 
 is_tiff_file = False
+tiff_dtype = None
 
 
 @manager.TRANSFORMS.add_component
@@ -124,6 +126,96 @@ class Compose:
         data["img"] = np.transpose(data["img"], (2, 0, 1))
         if "label" in data and data["label"].ndim == 3:
             data["label"] = np.transpose(data["label"], (2, 0, 1))
+        return data
+
+
+### TIFF image specific transformations
+@manager.TRANSFORMS.add_component
+class RandomRotate:
+    """
+    Rotate an image randomly by 90, 180, or 270 degrees.
+
+    Args:
+        prob (float, optional): The probability of rotating by 90 degrees. Default: 0.5.
+
+    Returns:
+        dict: The data after rotating.
+    """
+
+    def __init__(self, prob=0.5):
+        self.prob = prob
+
+    def __call__(self, data):
+        if random.random() < self.prob:
+            k = random.randint(1, 3)
+            data["img"] = np.rot90(data["img"], k=k)
+            for key in data.get("gt_fields", []):
+                data[key] = np.rot90(data[key], k=k)
+            del k
+        return data
+
+
+@manager.TRANSFORMS.add_component
+class RandomDistortTIFF:
+    """
+    Distort a TIFF image with random configurations.
+
+    Args:
+        gaussian_noise_prob (float, optional): The probability of adding Gaussian noise. Default: 0.5.
+        noise_scae (float, optional): The maximum noise scaling value. Default: 1.0.
+        gaussian_blur_prob (float, optional): The probability of applying Gaussian blur. Default: 0.5.
+        pixel_dropout_prob (float, optional): The probability of dropping pixels. Default: 0.5.
+        contrast_stretching_prob (float, optional): The probability of applying contrast stretching. Default: 0.5.
+
+    Returns:
+        dict: The data after applying distortion.
+    """
+
+    def __init__(
+        self,
+        gaussian_noise_prob=0.5,
+        noise_scale=1.0,
+        gaussian_blur_prob=0.5,
+        pixel_dropout_prob=0.5,
+        contrast_stretching_prob=0.5,
+    ):
+
+        self.gaussian_noise_prob = gaussian_noise_prob
+        self.noise_scale = noise_scale
+        self.gaussian_blur_prob = gaussian_blur_prob
+        self.pixel_dropout_prob = pixel_dropout_prob
+        self.contrast_stretching_prob = contrast_stretching_prob
+
+    def __call__(self, data):
+
+        assert is_tiff_file, "RandomDistortTIFF is only supported for TIFF images"
+        ops = [
+            functional.gaussian_noise,
+            functional.gaussian_blur,
+            functional.pixel_dropout,
+            functional.contrast_stretching,
+        ]
+        random.shuffle(ops)
+        prob_dict = {
+            "gaussian_noise": self.gaussian_noise_prob,
+            "gaussian_blur": self.gaussian_blur_prob,
+            "pixel_dropout": self.pixel_dropout_prob,
+            "contrast_stretching": self.contrast_stretching_prob,
+        }
+        params_dict = {
+            "gaussian_noise": {
+                "noise_scale": self.noise_scale,
+            }
+        }
+        for id in range(len(ops)):
+            if np.random.uniform(0, 1) < prob_dict[ops[id].__name__]:
+                try:
+                    params = params_dict[ops[id].__name__]
+                    params["image"] = data["img"]
+                    data["img"] = ops[id](**params)
+                    del params
+                except KeyError:
+                    data["img"] = ops[id](data["img"])
         return data
 
 

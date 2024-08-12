@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import cv2
-import numpy as np
-from PIL import Image, ImageEnhance
-from scipy.ndimage import distance_transform_edt
+import cv2  # type: ignore
+import numpy as np  # type: ignore
+from PIL import Image, ImageEnhance  # type: ignore
+from scipy.ndimage import distance_transform_edt  # type: ignore
 
 
 def crop(img, crop_coordinate):
@@ -25,8 +25,7 @@ def crop(img, crop_coordinate):
 
 
 def rescale_size(img_size, target_size):
-    scale = min(
-        max(target_size) / max(img_size), min(target_size) / min(img_size))
+    scale = min(max(target_size) / max(img_size), min(target_size) / min(img_size))
     rescaled_size = [round(i * scale) for i in img_size]
     return rescaled_size, scale
 
@@ -55,8 +54,7 @@ def resize_long(im, long_size=224, interpolation=cv2.INTER_LINEAR):
     resized_width = int(round(im.shape[1] * scale))
     resized_height = int(round(im.shape[0] * scale))
 
-    im = cv2.resize(
-        im, (resized_width, resized_height), interpolation=interpolation)
+    im = cv2.resize(im, (resized_width, resized_height), interpolation=interpolation)
     return im
 
 
@@ -66,8 +64,7 @@ def resize_short(im, short_size=224, interpolation=cv2.INTER_LINEAR):
     resized_width = int(round(im.shape[1] * scale))
     resized_height = int(round(im.shape[0] * scale))
 
-    im = cv2.resize(
-        im, (resized_width, resized_height), interpolation=interpolation)
+    im = cv2.resize(im, (resized_width, resized_height), interpolation=interpolation)
     return im
 
 
@@ -107,9 +104,9 @@ def saturation(im, saturation_lower, saturation_upper):
 
 def hue(im, hue_lower, hue_upper):
     hue_delta = np.random.uniform(hue_lower, hue_upper)
-    im = np.array(im.convert('HSV'))
+    im = np.array(im.convert("HSV"))
     im[:, :, 0] = im[:, :, 0] + hue_delta
-    im = Image.fromarray(im, mode='HSV').convert('RGB')
+    im = Image.fromarray(im, mode="HSV").convert("RGB")
     return im
 
 
@@ -153,17 +150,16 @@ def onehot_to_binary_edge(mask, radius):
         np.ndarray: Edge mask with shape(H, W).
     """
     if radius < 1:
-        raise ValueError('`radius` should be greater than or equal to 1')
+        raise ValueError("`radius` should be greater than or equal to 1")
     num_classes = mask.shape[0]
 
     edge = np.zeros(mask.shape[1:])
     # pad borders
-    mask = np.pad(mask, ((0, 0), (1, 1), (1, 1)),
-                  mode='constant',
-                  constant_values=0)
+    mask = np.pad(mask, ((0, 0), (1, 1), (1, 1)), mode="constant", constant_values=0)
     for i in range(num_classes):
         dist = distance_transform_edt(mask[i, :]) + distance_transform_edt(
-            1.0 - mask[i, :])
+            1.0 - mask[i, :]
+        )
         dist = dist[1:-1, 1:-1]
         dist[dist > radius] = 0
         edge += dist
@@ -189,3 +185,95 @@ def mask_to_binary_edge(mask, radius, num_classes):
     onehot = mask_to_onehot(mask, num_classes)
     edge = onehot_to_binary_edge(onehot, radius)
     return edge
+
+
+# TIFF-specific functions
+def gaussian_noise(image: np.ndarray, noise_scale: float = 2.0) -> np.ndarray:
+    """
+    Add Gaussian noise to a TIFF image.
+
+    Args:
+        image (np.ndarray): The image to which Gaussian noise will be added.
+        noise_scale (float): The maximum noise scaling value (default: 1.0).
+
+    Returns:
+        np.ndarray: The image after adding Gaussian noise.
+    """
+    #   get image statistics
+    try:
+        dtype = np.finfo(image.dtype)
+    except ValueError:
+        #  image is not a float
+        dtype = np.iinfo(image.dtype)
+    min_val, max_val = dtype.min, dtype.max
+
+    std = np.std(image) * np.random.uniform(low=0, high=noise_scale)
+    noise = np.random.normal(0, std, image.shape)
+    image = image + noise
+
+    image = np.clip(image, min_val, max_val).astype(dtype)
+    del dtype, min_val, max_val, std, noise
+
+    return image
+
+
+def gaussian_blur(image):
+    """
+    Gaussian blur a TIFF image.
+
+    Args:
+        image (np.ndarray): The image to which Gaussian blur will be applied.
+
+    Returns:
+        np.ndarray: The image after applying Gaussian blur.
+
+    """
+    sigma = np.random.uniform(low=0, high=1)
+    image = cv2.GaussianBlur(image, (0, 0), sigmaX=sigma)
+    del sigma
+
+    return image
+
+
+def pixel_dropout(image):
+    """
+    Randomly replace 1–10% of TIFF image pixels with the image mean value.
+
+    Args:
+        image (np.ndarray): The image to which pixel dropout will be applied.
+
+    Returns:
+        np.ndarray: The image after applying pixel dropout.
+    """
+    #   determine pixels to be set to image mean
+    h, w, _ = image.shape
+    total = h * w
+    pixels = np.rint(total * (np.random.randint(1, 11) / 100)).astype(np.uint32)
+    pixels = np.random.choice(total, size=pixels, replace=False)
+    rows, cols = (pixels // w) - 1, (pixels % w) - 1
+
+    #   replace select pixels with image mean
+    image[rows, cols] = np.mean(image)
+    del h, w, _, total, pixels, rows, cols
+
+    return image
+
+
+def contrast_stretching(image):
+    """
+    Apply contrast stretching to an image.
+
+    Args:
+
+    """
+    #   get image statistics
+    min_val = np.min(image)
+    max_val = np.max(image)
+    median = np.median(image)
+
+    #   apply contrast stretching
+    image = ((image - median) * np.random.uniform(low=0, high=1)) + median
+    image = np.clip(image, min_val, max_val)
+    del min_val, max_val, median
+
+    return image
