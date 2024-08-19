@@ -187,6 +187,44 @@ def mask_to_binary_edge(mask, radius, num_classes):
     return edge
 
 
+def contrast_stretching(image: np.ndarray) -> np.ndarray:
+    """
+    Apply contrast stretching to an image.
+
+    Args:
+
+    """
+    #   get image statistics
+    min_val = np.min(image)
+    max_val = np.max(image)
+    median = np.median(image)
+
+    #   apply contrast stretching
+    image = ((image - median) * np.random.uniform(low=0, high=1)) + median
+    image = np.clip(image, min_val, max_val)
+    del min_val, max_val, median
+
+    return image
+
+
+def gaussian_blur(image: np.ndarray) -> np.ndarray:
+    """
+    Gaussian blur a TIFF image.
+
+    Args:
+        image (np.ndarray): The image to which Gaussian blur will be applied.
+
+    Returns:
+        np.ndarray: The image after applying Gaussian blur.
+
+    """
+    sigma = np.random.uniform(low=0, high=1)
+    image = cv2.GaussianBlur(image, (0, 0), sigmaX=sigma)
+    del sigma
+
+    return image
+
+
 # TIFF-specific functions
 def gaussian_noise(image: np.ndarray, noise_scale: float = 2.0) -> np.ndarray:
     """
@@ -217,25 +255,7 @@ def gaussian_noise(image: np.ndarray, noise_scale: float = 2.0) -> np.ndarray:
     return image
 
 
-def gaussian_blur(image):
-    """
-    Gaussian blur a TIFF image.
-
-    Args:
-        image (np.ndarray): The image to which Gaussian blur will be applied.
-
-    Returns:
-        np.ndarray: The image after applying Gaussian blur.
-
-    """
-    sigma = np.random.uniform(low=0, high=1)
-    image = cv2.GaussianBlur(image, (0, 0), sigmaX=sigma)
-    del sigma
-
-    return image
-
-
-def pixel_dropout(image):
+def pixel_dropout(image: np.ndarray) -> np.ndarray:
     """
     Randomly replace 1–10% of TIFF image pixels with the image mean value.
 
@@ -246,7 +266,7 @@ def pixel_dropout(image):
         np.ndarray: The image after applying pixel dropout.
     """
     #   determine pixels to be set to image mean
-    h, w, _ = image.shape
+    h, w = image.shape[:2]
     total = h * w
     pixels = np.rint(total * (np.random.randint(1, 11) / 100)).astype(np.uint32)
     pixels = np.random.choice(total, size=pixels, replace=False)
@@ -254,26 +274,30 @@ def pixel_dropout(image):
 
     #   replace select pixels with image mean
     image[rows, cols] = np.mean(image)
-    del h, w, _, total, pixels, rows, cols
+    del h, w, total, pixels, rows, cols
 
     return image
 
 
-def contrast_stretching(image):
+def random_clip(image, min_clip: float = 0.01, max_clip=0.1) -> np.ndarray:
     """
-    Apply contrast stretching to an image.
+    Randomly clip pixel intensity values in an image by a random factor.
 
     Args:
+        image (np.ndarray): The image to which pixel intensity values will be clipped.
+        min_clip (float): The minimum clipping factor (default: 0.01).
+        max_clip (float): The maximum clipping factor (default: 0.10).
 
+    Returns:
+        np.ndarray: The image after clipping pixel intensity values.
     """
-    #   get image statistics
-    min_val = np.min(image)
-    max_val = np.max(image)
-    median = np.median(image)
+    #   randomly select a clipping fraction for each end of the distribution
+    clip_fraction = np.random.uniform(min_clip, max_clip)
+    lower_clip = np.percentile(image, 100 * clip_fraction)
+    upper_clip = np.percentile(image, 100 * (1 - clip_fraction))
 
-    #   apply contrast stretching
-    image = ((image - median) * np.random.uniform(low=0, high=1)) + median
-    image = np.clip(image, min_val, max_val)
-    del min_val, max_val, median
+    #   apply clipping
+    image = np.clip(image, lower_clip, upper_clip)
+    del clip_fraction, lower_clip, upper_clip
 
     return image

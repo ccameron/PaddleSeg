@@ -75,7 +75,10 @@ class Compose:
             try:
                 # read in TIFF images using tifffile
                 with tiff.TiffFile(data["img"]) as tif:
-                    img = tif.asarray().transpose([1, 2, 0])
+                    img = tif.asarray()
+                if img.ndim == 3:
+                    #   transpose CHW to HWC
+                    img = img.transpose([1, 2, 0])
                 is_tiff_file = True
             except tiff.tifffile.TiffFileError:
                 # read other file formats using OpenCV - 1 or 3 channel only
@@ -161,11 +164,14 @@ class RandomDistortTIFF:
     Distort a TIFF image with random configurations.
 
     Args:
-        gaussian_noise_prob (float, optional): The probability of adding Gaussian noise. Default: 0.5.
-        noise_scae (float, optional): The maximum noise scaling value. Default: 1.0.
-        gaussian_blur_prob (float, optional): The probability of applying Gaussian blur. Default: 0.5.
-        pixel_dropout_prob (float, optional): The probability of dropping pixels. Default: 0.5.
         contrast_stretching_prob (float, optional): The probability of applying contrast stretching. Default: 0.5.
+        gaussian_blur_prob (float, optional): The probability of applying Gaussian blur. Default: 0.5.
+        gaussian_noise_prob (float, optional): The probability of adding Gaussian noise. Default: 0.5.
+        noise_scale (float, optional): The maximum noise scaling value. Default: 2.0.
+        pixel_dropout_prob (float, optional): The probability of dropping pixels. Default: 0.5.
+        random_clip_prob (float, optional): The probability of randomly clipping pixel intensities. Default: 0.5.
+        min_clip (float, optional): The minimum value of the random clip. Default: 0.01.
+        max_clip (float, optional): The maximum value of the random clip. Default: 0.1.
 
     Returns:
         dict: The data after applying distortion.
@@ -173,39 +179,51 @@ class RandomDistortTIFF:
 
     def __init__(
         self,
-        gaussian_noise_prob=0.5,
-        noise_scale=1.0,
-        gaussian_blur_prob=0.5,
-        pixel_dropout_prob=0.5,
-        contrast_stretching_prob=0.5,
-    ):
+        contrast_stretching_prob: float = 0.5,
+        gaussian_blur_prob: float = 0.5,
+        gaussian_noise_prob: float = 0.5,
+        noise_scale: float = 2.0,
+        pixel_dropout_prob: float = 0.5,
+        random_clip_prob: float = 0.5,
+        min_clip: float = 0.01,
+        max_clip: float = 0.1,
+    ) -> None:
 
+        self.contrast_stretching_prob = contrast_stretching_prob
+        self.gaussian_blur_prob = gaussian_blur_prob
         self.gaussian_noise_prob = gaussian_noise_prob
         self.noise_scale = noise_scale
-        self.gaussian_blur_prob = gaussian_blur_prob
         self.pixel_dropout_prob = pixel_dropout_prob
-        self.contrast_stretching_prob = contrast_stretching_prob
+        self.random_clip_prob = random_clip_prob
+        self.min_clip = min_clip
+        self.max_clip = max_clip
 
-    def __call__(self, data):
+    def __call__(self, data: dict) -> dict:
 
         assert is_tiff_file, "RandomDistortTIFF is only supported for TIFF images"
         ops = [
-            functional.gaussian_noise,
-            functional.gaussian_blur,
-            functional.pixel_dropout,
             functional.contrast_stretching,
+            functional.gaussian_blur,
+            functional.gaussian_noise,
+            functional.pixel_dropout,
+            functional.random_clip,
         ]
         random.shuffle(ops)
         prob_dict = {
-            "gaussian_noise": self.gaussian_noise_prob,
-            "gaussian_blur": self.gaussian_blur_prob,
-            "pixel_dropout": self.pixel_dropout_prob,
             "contrast_stretching": self.contrast_stretching_prob,
+            "gaussian_blur": self.gaussian_blur_prob,
+            "gaussian_noise": self.gaussian_noise_prob,
+            "pixel_dropout": self.pixel_dropout_prob,
+            "random_clip": self.random_clip_prob,
         }
         params_dict = {
             "gaussian_noise": {
                 "noise_scale": self.noise_scale,
-            }
+            },
+            "random_clip": {
+                "min_clip": self.min_clip,
+                "max_clip": self.max_clip,
+            },
         }
         for id in range(len(ops)):
             if np.random.uniform(0, 1) < prob_dict[ops[id].__name__]:
