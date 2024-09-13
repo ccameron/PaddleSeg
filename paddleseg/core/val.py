@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import cv2  # type: ignore
 import os
 
 import numpy as np  # type: ignore
@@ -23,6 +24,71 @@ from paddleseg.utils import metrics, TimeAverager, calculate_eta, logger, progba
 from paddleseg.core import infer
 
 np.set_printoptions(suppress=True)
+
+
+def create_diff_image(
+    pred: paddle.Tensor,
+    label: paddle.Tensor,
+    save_dir: str,
+    out_file: str,
+    input: paddle.Tensor = None,
+) -> None:
+    """
+    Create visualization of prediction and label.
+
+    Args:
+        pred (paddle.Tensor): The prediction result.
+        label (paddle.Tensor): The label.
+        save_dir (str): The directory to save the visualization results.
+        out_file (str): The name of the output file.
+        input (paddle.Tensor, optional): The input image. Default: None.
+
+    Returns:
+        None
+    """
+    assert (
+        pred.shape == label.shape
+    ), "The shape of prediction and label should be the same."
+
+    #   create output directory
+    out_dir = os.path.join(
+        save_dir, "psuedo_color_difference" if input is None else "added_difference"
+    )
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+        #   create README
+        with open(os.path.join(out_dir, "README.txt"), "w") as f:
+            f.write(
+                """The color code for the difference image is as follows:
+-   Yellow: Model prediction and label match
+-   Red: Model prediction and label mismatch
+-   Orange: Potential false positives (model predicts label where there is none)
+-   Blue: Missed labels (model does not predict label where there is one)"""
+            )
+
+    #   determine label and prediction mismatches
+    mismatch = label - pred
+    mismatch = mismatch.squeeze().cpu().numpy().astype(np.int8)
+    #   calculate binary difference of prediction and label
+    pred[pred > 0] = 1
+    label[label > 0] = 1
+    diff = label - pred
+    pred = pred.squeeze().cpu().numpy().astype(np.int8)
+    diff = diff.squeeze().cpu().numpy().astype(np.int8)
+    del label
+
+    if input is not None:
+        img = (input.squeeze().cpu().numpy() * 255).astype(np.uint8)
+        img = np.stack([img] * 3, axis=-1)
+    else:
+        img = np.full((diff.shape[0], diff.shape[1], 3), 128, dtype=np.uint8)
+    # colors taken from https://colorbrewer2.org/
+    img[(mismatch == 0) & (pred > 0)] = [191, 255, 255]  # yellow - correct labels
+    img[(mismatch != 0) & (pred > 0)] = [28, 25, 215]  # red - incorrect labels
+    img[diff == -1] = [67, 109, 244]  # orange - false positives
+    img[diff == 1] = [189, 136, 50]  # blue - missed labels
+    cv2.imwrite(os.path.join(out_dir, out_file), img)
+    del pred, mismatch, diff, img
 
 
 def evaluate(
@@ -42,6 +108,7 @@ def evaluate(
     auc_roc=False,
     use_multilabel=False,
     all_class_metrics=False,
+    save_dir=None,
 ):
     """
     Launch evalution.
@@ -65,6 +132,7 @@ def evaluate(
         auc_roc(bool, optional): whether add auc_roc metric
         use_multilabel (bool, optional): Whether to enable multilabel mode. Default: False.
         all_class_metrics (bool, optional): Whether to return all class metrics. Default: False.
+        save_dir (str, optional): The directory to save the visualization results. Default: None.
 
     Returns:
         float: The mIoU of validation datasets.
@@ -180,6 +248,14 @@ def evaluate(
                         crop_size=crop_size,
                         use_multilabel=use_multilabel,
                     )
+
+            if save_dir is not None:
+                #   create visualization of prediction and label
+                out_file = os.path.basename(eval_dataset.file_list[iter][0])
+                out_file = ".".join(out_file.split(".")[:-1] + ["png"])
+                create_diff_image(pred, label, save_dir, out_file)
+                create_diff_image(pred, label, save_dir, out_file, data["img"])
+                del out_file
 
             intersect_area, pred_area, label_area = metrics.calculate_area(
                 pred,

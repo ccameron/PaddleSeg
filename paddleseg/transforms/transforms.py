@@ -96,7 +96,7 @@ class Compose:
             )
 
         img_channels = 1 if data["img"].ndim == 2 else data["img"].shape[2]
-        if img_channels != self.img_channels:
+        if not is_tiff_file and img_channels != self.img_channels:
             raise ValueError(
                 "The img_channels ({}) is not equal to the channel of loaded image ({})".format(
                     self.img_channels, img_channels
@@ -129,6 +129,16 @@ class Compose:
         data["img"] = np.transpose(data["img"], (2, 0, 1))
         if "label" in data and data["label"].ndim == 3:
             data["label"] = np.transpose(data["label"], (2, 0, 1))
+
+        if is_tiff_file and not data["img"].shape[0] == self.img_channels:
+            assert (
+                data["img"].shape[0] == 1
+            ), "Only TIFF images with 1 channels can support multi-channel models"
+
+            data["img"] = np.concatenate(
+                tuple([data["img"]] * self.img_channels), axis=0
+            )
+
         return data
 
 

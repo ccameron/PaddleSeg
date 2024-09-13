@@ -33,33 +33,35 @@ def mkdir(path):
 def partition_list(arr, m):
     """split the list 'arr' into m pieces"""
     n = int(math.ceil(len(arr) / float(m)))
-    return [arr[i:i + n] for i in range(0, len(arr), n)]
+    return [arr[i : i + n] for i in range(0, len(arr), n)]
 
 
 def preprocess(im_path, transforms):
     data = {}
-    data['img'] = im_path
+    data["img"] = im_path
     data = transforms(data)
-    data['img'] = data['img'][np.newaxis, ...]
-    data['img'] = paddle.to_tensor(data['img'])
+    data["img"] = data["img"][np.newaxis, ...]
+    data["img"] = paddle.to_tensor(data["img"])
     return data
 
 
-def predict(model,
-            model_path,
-            transforms,
-            image_list,
-            image_dir=None,
-            save_dir='output',
-            aug_pred=False,
-            scales=1.0,
-            flip_horizontal=True,
-            flip_vertical=False,
-            is_slide=False,
-            stride=None,
-            crop_size=None,
-            custom_color=None,
-            use_multilabel=False):
+def predict(
+    model,
+    model_path,
+    transforms,
+    image_list,
+    image_dir=None,
+    save_dir="output",
+    aug_pred=False,
+    scales=1.0,
+    flip_horizontal=True,
+    flip_vertical=False,
+    is_slide=False,
+    stride=None,
+    crop_size=None,
+    custom_color=None,
+    use_multilabel=False,
+):
     """
     predict and visualize the image_list.
 
@@ -92,8 +94,8 @@ def predict(model,
     else:
         img_lists = [image_list]
 
-    added_saved_dir = os.path.join(save_dir, 'added_prediction')
-    pred_saved_dir = os.path.join(save_dir, 'pseudo_color_prediction')
+    added_saved_dir = os.path.join(save_dir, "added_prediction")
+    pred_saved_dir = os.path.join(save_dir, "pseudo_color_prediction")
 
     logger.info("Start to predict...")
     progbar_pred = progbar.Progbar(target=len(img_lists[0]), verbose=1)
@@ -105,51 +107,59 @@ def predict(model,
             if aug_pred:
                 pred, _ = infer.aug_inference(
                     model,
-                    data['img'],
-                    trans_info=data['trans_info'],
+                    data["img"],
+                    trans_info=data["trans_info"],
                     scales=scales,
                     flip_horizontal=flip_horizontal,
                     flip_vertical=flip_vertical,
                     is_slide=is_slide,
                     stride=stride,
                     crop_size=crop_size,
-                    use_multilabel=use_multilabel)
+                    use_multilabel=use_multilabel,
+                )
             else:
                 pred, _ = infer.inference(
                     model,
-                    data['img'],
-                    trans_info=data['trans_info'],
+                    data["img"],
+                    trans_info=data["trans_info"],
                     is_slide=is_slide,
                     stride=stride,
                     crop_size=crop_size,
-                    use_multilabel=use_multilabel)
+                    use_multilabel=use_multilabel,
+                )
             pred = paddle.squeeze(pred)
-            pred = pred.numpy().astype('uint8')
+            pred = pred.numpy().astype("uint8")
 
             # get the saved name
             if image_dir is not None:
-                im_file = im_path.replace(image_dir, '')
+                im_file = im_path.replace(image_dir, "")
             else:
                 im_file = os.path.basename(im_path)
-            if im_file[0] == '/' or im_file[0] == '\\':
+            if im_file[0] == "/" or im_file[0] == "\\":
                 im_file = im_file[1:]
 
             # save added image
             added_image = utils.visualize.visualize(
-                im_path, pred, color_map, weight=0.6, use_multilabel=use_multilabel)
+                im_path, pred, color_map, weight=0.6, use_multilabel=use_multilabel
+            )
             added_image_path = os.path.join(added_saved_dir, im_file)
             mkdir(added_image_path)
             cv2.imwrite(added_image_path, added_image)
 
             # save pseudo color prediction
             pred_mask = utils.visualize.get_pseudo_color_map(
-                pred, color_map, use_multilabel=use_multilabel)
+                pred, color_map, use_multilabel=use_multilabel
+            )
             pred_saved_path = os.path.join(
-                pred_saved_dir, os.path.splitext(im_file)[0] + ".png")
+                pred_saved_dir, os.path.splitext(im_file)[0] + ".png"
+            )
             mkdir(pred_saved_path)
             pred_mask.save(pred_saved_path)
 
             progbar_pred.update(i + 1)
 
-    logger.info("Predicted images are saved in {} and {} .".format(
-        added_saved_dir, pred_saved_dir))
+    logger.info(
+        "Predicted images are saved in {} and {} .".format(
+            added_saved_dir, pred_saved_dir
+        )
+    )
